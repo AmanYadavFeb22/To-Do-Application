@@ -1,68 +1,81 @@
-// API service for interacting with Next.js API routes
-const API_BASE_URL = '/api/todos';
+// API service for interacting with Supabase
+import { supabase } from '../lib/supabaseClient';
 
 export const todoApi = {
   getAll: async () => {
-    const response = await fetch(API_BASE_URL);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch todos: ${response.status}`);
-    }
-    return response.json();
+    const { data, error } = await supabase
+      .from('todos')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
   },
   create: async (todoData) => {
-    const response = await fetch(API_BASE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(todoData)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create todo: ${response.status}`);
-    }
-    return response.json();
+    const { data, error } = await supabase
+      .from('todos')
+      .insert([
+        {
+          title: todoData.title,
+          description: todoData.description || '',
+          completed: false  
+        }
+      ])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   },
   update: async (id, todoData) => {
-    const response = await fetch(`${API_BASE_URL}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(todoData)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update todo: ${response.status}`);
-    }
-    return response.json();
+    const { data, error } = await supabase
+      .from('todos')
+      .update(todoData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   },
   delete: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/${id}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete todo: ${response.status}`);
-    }
-    return response.json();
+    const { error } = await supabase
+      .from('todos')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return { message: 'Todo deleted successfully' };
   },
   toggleTodo: async (id) => {
-    // First, get the current todo
-    const response = await fetch(`${API_BASE_URL}/${id}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch todo for toggle: ${response.status}`);
-    }
-    const currentTodo = await response.json();
+    // First get the current todo
+    const { data: currentTodo, error: fetchError } = await supabase
+      .from('todos')
+      .select('*')
+      .eq('id', id)
+      .single();
     
-    // Then send PUT request with flipped completed status
-    const putResponse = await fetch(`${API_BASE_URL}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: currentTodo.title,
-        description: currentTodo.description,
-        completed: !currentTodo.completed
-      })
-    });
+    if (fetchError) throw fetchError;
     
-    if (!putResponse.ok) {
-      throw new Error(`Failed to toggle todo: ${putResponse.status}`);
-    }
+    // Then update with flipped completed status
+    const { data, error } = await supabase
+      .from('todos')
+      .update({ completed: !currentTodo.completed })
+      .eq('id', id)
+      .select()
+      .single();
     
-    return putResponse.json();
+    if (error) throw error;
+    return data;
+  },
+  getById: async (id) => {
+    const { data, error } = await supabase
+      .from('todos')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 };

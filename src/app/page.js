@@ -1,24 +1,52 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckSquare, ListTodo, CheckCircle2, Circle } from 'lucide-react';
+import { CheckSquare, ListTodo, CheckCircle2, Circle, LogOut } from 'lucide-react';
 import TodoItem from './components/TodoItem';
 import AddTodoDialog from './components/AddTodoDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { todoApi } from '../services/api';
+import { getCurrentUser, signOut } from '../lib/auth';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'completed'
+  const [user, setUser] = useState(null);
+  const router = useRouter();
+  
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setUser(null);
+      router.push('/auth/login');
+    } catch (err) {
+      console.error('Error signing out:', err);
+      setError('Failed to sign out.');
+    }
+  };
 
-  // Fetch todos on component mount
+  // Fetch todos and check authentication status on component mount
   useEffect(() => {
-    fetchTodos();
+    const fetchData = async () => {
+      try {
+        // Fetch todos
+        await fetchTodos();
+        
+        // Check authentication status
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      } catch (err) {
+        console.error('Error during initial load:', err);
+      }
+    };
+    
+    fetchData();
   }, []);
-
+  
   const fetchTodos = async () => {
     try {
       setLoading(true);
@@ -39,7 +67,7 @@ export default function Home() {
   const handleAddTodo = async (todoData) => {
     try {
       const newTodo = await todoApi.create(todoData);
-      setTodos(prevTodos => [newTodo, ...prevTodos]);
+      setTodos(prevTodos => [{...newTodo, _id: newTodo.id}, ...prevTodos]);
     } catch (err) {
       setError('Failed to create todo.');
       console.error('Error creating todo:', err);
@@ -49,9 +77,14 @@ export default function Home() {
   const handleToggleTodo = async (id) => {
     try {
       const updatedTodo = await todoApi.toggleTodo(id);
-      setTodos(prevTodos => prevTodos.map(todo => 
-        todo._id === id ? updatedTodo : todo
-      ));
+      setTodos(prevTodos => {
+        const newTodos = [...prevTodos];
+        const index = newTodos.findIndex(todo => (todo._id || todo.id) === id);
+        if (index !== -1) {
+          newTodos[index] = { ...updatedTodo, _id: updatedTodo.id };
+        }
+        return newTodos;
+      });
     } catch (err) {
       setError('Failed to toggle todo.');
       console.error('Error toggling todo:', err);
@@ -61,9 +94,14 @@ export default function Home() {
   const handleUpdateTodo = async (id, todoData) => {
     try {
       const updatedTodo = await todoApi.update(id, todoData);
-      setTodos(prevTodos => prevTodos.map(todo => 
-        todo._id === id ? updatedTodo : todo
-      ));
+      setTodos(prevTodos => {
+        const newTodos = [...prevTodos];
+        const index = newTodos.findIndex(todo => (todo._id || todo.id) === id);
+        if (index !== -1) {
+          newTodos[index] = { ...updatedTodo, _id: updatedTodo.id };
+        }
+        return newTodos;
+      });
     } catch (err) {
       setError('Failed to update todo.');
       console.error('Error updating todo:', err);
@@ -73,7 +111,7 @@ export default function Home() {
   const handleDeleteTodo = async (id) => {
     try {
       await todoApi.delete(id);
-      setTodos(prevTodos => prevTodos.filter(todo => todo._id !== id));
+      setTodos(prevTodos => prevTodos.filter(todo => (todo._id || todo.id) !== id));
     } catch (err) {
       setError('Failed to delete todo.');
       console.error('Error deleting todo:', err);
@@ -106,6 +144,23 @@ export default function Home() {
           <p className="text-muted-foreground text-lg">
             Organize your tasks efficiently and stay productive
           </p>
+          
+          {user && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <span className="text-sm text-muted-foreground">
+                Signed in as: <span className="font-medium">{user.email}</span>
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className="h-8 w-8 p-0"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -216,7 +271,7 @@ export default function Home() {
           ) : (
             filteredTodos.map((todo) => (
               <TodoItem
-                key={todo._id}
+                key={todo._id || todo.id}
                 todo={todo}
                 onToggle={handleToggleTodo}
                 onDelete={handleDeleteTodo}
@@ -228,7 +283,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className="mt-12 text-center text-sm text-muted-foreground">
-          <p>Built with Next.js, MongoDB & shadcn/ui</p>
+          <p>Built with Next.js, Supabase & shadcn/ui</p>
         </div>
       </div>
     </div>

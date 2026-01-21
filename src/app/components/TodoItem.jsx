@@ -12,7 +12,7 @@ const TodoItem = ({ todo, onToggle, onDelete, onUpdate }) => {
   const [editDescription, setEditDescription] = useState(todo.description || '');
 
   const handleSave = () => {
-    onUpdate(todo._id, { 
+    onUpdate(todo._id || todo.id, { 
       title: editTitle, 
       description: editDescription,
       completed: todo.completed 
@@ -70,7 +70,7 @@ const TodoItem = ({ todo, onToggle, onDelete, onUpdate }) => {
       <div className="flex items-start gap-3">
         <Checkbox
           checked={todo.completed}
-          onCheckedChange={() => onToggle(todo._id)}
+          onCheckedChange={() => onToggle(todo._id || todo.id)}
           className="mt-1"
         />  
         <div className="flex-1 min-w-0">
@@ -93,14 +93,29 @@ const TodoItem = ({ todo, onToggle, onDelete, onUpdate }) => {
             </p>
           )}
           <p className="text-xs text-muted-foreground mt-2">
-            {new Date(todo.createdAt).toLocaleDateString('en-US', {
+            {todo.createdAt ? new Date(todo.createdAt).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
               hour: '2-digit',
               minute: '2-digit'
-            })}
+            }) : todo.created_at ? new Date(todo.created_at).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : ''}
           </p>
+          {todo.created_at && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Created: {new Date(todo.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              })}
+            </p>
+          )}
         </div>
         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <Button
@@ -114,7 +129,7 @@ const TodoItem = ({ todo, onToggle, onDelete, onUpdate }) => {
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => onDelete(todo._id)}
+            onClick={() => onDelete(todo._id || todo.id)}
             className="h-8 w-8 text-destructive hover:text-destructive"
           >
             <Trash2 className="h-4 w-4" />
