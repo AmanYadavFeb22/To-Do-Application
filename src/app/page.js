@@ -55,8 +55,14 @@ export default function Home() {
       // Ensure data is an array
       setTodos(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError('Failed to fetch todos. Make sure the backend is running.');
-      console.error('Error fetching todos:', err);
+      // Check if the error is related to authentication
+      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
+        // Don't show error message or log for auth issues
+        setTodos([]);
+      } else {
+        setError('Failed to fetch todos. Make sure the backend is running.');
+        console.error('Error fetching todos:', err);
+      }
       // Set todos to an empty array on error
       setTodos([]);
     } finally {
@@ -69,7 +75,13 @@ export default function Home() {
       const newTodo = await todoApi.create(todoData);
       setTodos(prevTodos => [{...newTodo, _id: newTodo.id}, ...prevTodos]);
     } catch (err) {
-      setError('Failed to create todo.');
+      // Check if the error is related to authentication
+      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
+        setError('Please log in to create todos.');
+        router.push('/auth/login');
+      } else {
+        setError('Failed to create todo.');
+      }
       console.error('Error creating todo:', err);
     }
   };
@@ -86,7 +98,13 @@ export default function Home() {
         return newTodos;
       });
     } catch (err) {
-      setError('Failed to toggle todo.');
+      // Check if the error is related to authentication
+      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
+        setError('Please log in to toggle todos.');
+        router.push('/auth/login');
+      } else {
+        setError('Failed to toggle todo.');
+      }
       console.error('Error toggling todo:', err);
     }
   };
@@ -103,7 +121,13 @@ export default function Home() {
         return newTodos;
       });
     } catch (err) {
-      setError('Failed to update todo.');
+      // Check if the error is related to authentication
+      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
+        setError('Please log in to update todos.');
+        router.push('/auth/login');
+      } else {
+        setError('Failed to update todo.');
+      }
       console.error('Error updating todo:', err);
     }
   };
@@ -113,7 +137,13 @@ export default function Home() {
       await todoApi.delete(id);
       setTodos(prevTodos => prevTodos.filter(todo => (todo._id || todo.id) !== id));
     } catch (err) {
-      setError('Failed to delete todo.');
+      // Check if the error is related to authentication
+      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
+        setError('Please log in to delete todos.');
+        router.push('/auth/login');
+      } else {
+        setError('Failed to delete todo.');
+      }
       console.error('Error deleting todo:', err);
     }
   };
