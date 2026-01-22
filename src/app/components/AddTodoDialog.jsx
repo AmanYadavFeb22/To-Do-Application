@@ -1,5 +1,8 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -13,16 +16,39 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
+import { getCurrentUser } from '../../lib/auth';
 
 const AddTodoDialog = ({ onAdd }) => {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const router = useRouter();
 
-  const handleSubmit = (e) => {
+  const handleOpen = async () => {
+    // Check if user is authenticated
+    const user = await getCurrentUser();
+    if (!user) {
+      // Redirect to login if not authenticated
+      router.push('/auth/login');
+      return;
+    }
+    // If authenticated, open the dialog
+    setOpen(true);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Double-check authentication on submit
+    const user = await getCurrentUser();
+    if (!user) {
+      router.push('/auth/login');
+      setOpen(false);
+      return;
+    }
+    
     if (title.trim()) {
-      onAdd({ title: title.trim(), description: description.trim() });
+      await onAdd({ title: title.trim(), description: description.trim() });
       setTitle('');
       setDescription('');
       setOpen(false);
@@ -32,7 +58,11 @@ const AddTodoDialog = ({ onAdd }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="shadow-lg hover:shadow-xl transition-shadow duration-200">
+        <Button 
+          size="lg" 
+          className="shadow-lg hover:shadow-xl transition-shadow duration-200"
+          onClick={handleOpen}
+        >
           <Plus className="h-5 w-5 mr-2" />
           Add New Todo
         </Button>
