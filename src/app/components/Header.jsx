@@ -2,23 +2,54 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Button } from '../../app/components/ui/button';
+import { Button } from './ui/button';
 import { cn } from '../../lib/utils';
 import { Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import UserProfile from './UserProfile';
+import { getCurrentUser } from '../../lib/auth';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    // Function to check current auth status
+    const checkAuth = async () => {
+      try {
+        const userData = await getCurrentUser();
+        setUser(userData);
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setUser(null); // Explicitly set to null if there's an error
+      }
+    };
+    
+    checkAuth();
+    
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        // User signed in or profile updated
+        setUser(session?.user || null);
+      } else if (event === 'SIGNED_OUT') {
+        // User signed out
+        setUser(null);
+      }
+    });
+    
+    // Cleanup function
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
   
   const isAuthPage = pathname.startsWith('/auth');
   
   // Navigation items
-  const navItems = [
-    { name: 'Home', href: '/' },
-    { name: 'Login', href: '/auth/login' },
-    { name: 'Sign Up', href: '/auth/signup' },
-  ];
+
   
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
@@ -36,12 +67,7 @@ export default function Header() {
             Todo App
           </Link>
           <nav className="hidden md:flex items-center space-x-2">
-            <Link 
-              href="/" 
-              className="text-sm font-medium px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"
-            >
-              Back to Home
-            </Link>
+            {/* No navigation links for auth pages */}
           </nav>
           {/* Mobile menu button for auth pages */}
           <Button 
@@ -54,20 +80,7 @@ export default function Header() {
           </Button>
         </div>
         
-        {/* Mobile menu for auth pages */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-white/95 backdrop-blur-sm">
-            <div className="container px-4 py-3 space-y-2">
-              <Link 
-                href="/" 
-                className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-100 transition-colors"
-                onClick={closeMobileMenu}
-              >
-                Back to Home
-              </Link>
-            </div>
-          </div>
-        )}
+        {/* No mobile menu for auth pages since no navigation items */}
       </header>
     );
   }
@@ -81,20 +94,8 @@ export default function Header() {
         
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                pathname === item.href
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-foreground hover:bg-gray-100 hover:text-foreground"
-              )}
-            >
-              {item.name}
-            </Link>
-          ))}
+          {/* Show user profile when authenticated */}
+          {user && <UserProfile />}
         </nav>
         
         {/* Mobile menu button */}
@@ -112,21 +113,12 @@ export default function Header() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t bg-white/95 backdrop-blur-sm animate-in slide-in-from-top-2 duration-200">
           <div className="container px-4 py-3 space-y-2">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "block px-3 py-2 rounded-md text-base font-medium transition-colors",
-                  pathname === item.href
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-gray-100"
-                )}
-                onClick={closeMobileMenu}
-              >
-                {item.name}
-              </Link>
-            ))}
+            {/* Show user profile in mobile when authenticated */}
+            {user && (
+              <div className="pb-2 border-b border-gray-200">
+                <UserProfile />
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -9,19 +9,52 @@ import {
   CardTitle,
 } from '../../../app/components/ui/card';
 import { Input } from '../../../app/components/ui/input';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from '../../../lib/auth';
+import { signIn, getCurrentUser } from '../../../lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Simple state for form fields
+  const [checkingAuth, setCheckingAuth] = useState(true); // Add loading state
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+  
+  // Check if user is already authenticated on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          // If user is already logged in, redirect to home page
+          router.push('/');
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+      } finally {
+        setCheckingAuth(false); // Stop checking auth
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
+  
+  // Show nothing while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+        <div className="flex items-center justify-center gap-2">
+          <div className="h-6 w-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Rest of the component logic continues here...
 
   // Handle input changes
   const handleChange = (field, value) => {

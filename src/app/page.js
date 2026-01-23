@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckSquare, ListTodo, CheckCircle2, Circle, LogOut } from 'lucide-react';
+import { CheckSquare, ListTodo, CheckCircle2, Circle } from 'lucide-react';
 import TodoItem from './components/TodoItem';
 import AddTodoDialog from './components/AddTodoDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { todoApi } from '../services/api';
+import fileService from '../services/fileService';
 import { getCurrentUser, signOut } from '../lib/auth';
 import { useRouter } from 'next/navigation';
 
@@ -16,35 +17,36 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'completed'
   const [user, setUser] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
   const router = useRouter();
   
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      setUser(null);
-      router.push('/auth/login');
-    } catch (err) {
-      console.error('Error signing out:', err);
-      setError('Failed to sign out.');
-    }
-  };
-
-  // Fetch todos and check authentication status on component mount
+  // Check authentication and fetch todos on component mount
   useEffect(() => {
-    const fetchData = async () => {
+    const checkAuthAndLoadData = async () => {
       try {
-        // Fetch todos
-        await fetchTodos();
-        
-        // Check authentication status
+        // Check authentication status first
         const currentUser = await getCurrentUser();
+        if (!currentUser) {
+          // If not authenticated, redirect to login
+          router.push('/auth/login');
+          return;
+        }
         setUser(currentUser);
+        
+        // Fetch todos only if authenticated (files are now handled with todos)
+        await fetchTodos();
       } catch (err) {
-        console.error('Error during initial load:', err);
+        // If there's an authentication error, redirect to login
+        if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
+          router.push('/auth/login');
+        } else {
+          console.error('Error during initial load:', err);
+        }
       }
     };
     
-    fetchData();
+    checkAuthAndLoadData();
   }, []);
   
   const fetchTodos = async () => {
@@ -55,14 +57,8 @@ export default function Home() {
       // Ensure data is an array
       setTodos(Array.isArray(data) ? data : []);
     } catch (err) {
-      // Check if the error is related to authentication
-      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
-        // Don't show error message or log for auth issues
-        setTodos([]);
-      } else {
-        setError('Failed to fetch todos. Make sure the backend is running.');
-        console.error('Error fetching todos:', err);
-      }
+      setError('Failed to fetch todos. Make sure the backend is running.');
+      console.error('Error fetching todos:', err);
       // Set todos to an empty array on error
       setTodos([]);
     } finally {
@@ -72,16 +68,34 @@ export default function Home() {
 
   const handleAddTodo = async (todoData) => {
     try {
-      const newTodo = await todoApi.create(todoData);
-      setTodos(prevTodos => [{...newTodo, _id: newTodo.id}, ...prevTodos]);
-    } catch (err) {
-      // Check if the error is related to authentication
-      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
-        setError('Please log in to create todos.');
-        router.push('/auth/login');
+      // If there's a file, we need to handle it separately
+      if (todoData.file) {
+        // First, upload the file to Supabase storage
+        const uploadedFile = await fileService.uploadFile(
+          todoData.file, 
+          user.id, 
+          `${user.id}/todos/${Date.now()}-${todoData.fileName}`
+        );
+        
+        // Create todo with file URL
+        const newTodo = await todoApi.create({
+          title: todoData.title,
+          description: todoData.description,
+          file_url: uploadedFile.file_url
+        });
+        
+        setTodos(prevTodos => [{...newTodo, _id: newTodo.id, file_url: uploadedFile.file_url}, ...prevTodos]);
       } else {
-        setError('Failed to create todo.');
+        // Create todo without file
+        const newTodo = await todoApi.create({
+          title: todoData.title,
+          description: todoData.description
+        });
+        
+        setTodos(prevTodos => [{...newTodo, _id: newTodo.id}, ...prevTodos]);
       }
+    } catch (err) {
+      setError('Failed to create todo.');
       console.error('Error creating todo:', err);
     }
   };
@@ -98,13 +112,7 @@ export default function Home() {
         return newTodos;
       });
     } catch (err) {
-      // Check if the error is related to authentication
-      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
-        setError('Please log in to toggle todos.');
-        router.push('/auth/login');
-      } else {
-        setError('Failed to toggle todo.');
-      }
+      setError('Failed to toggle todo.');
       console.error('Error toggling todo:', err);
     }
   };
@@ -121,13 +129,7 @@ export default function Home() {
         return newTodos;
       });
     } catch (err) {
-      // Check if the error is related to authentication
-      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
-        setError('Please log in to update todos.');
-        router.push('/auth/login');
-      } else {
-        setError('Failed to update todo.');
-      }
+      setError('Failed to update todo.');
       console.error('Error updating todo:', err);
     }
   };
@@ -137,13 +139,7 @@ export default function Home() {
       await todoApi.delete(id);
       setTodos(prevTodos => prevTodos.filter(todo => (todo._id || todo.id) !== id));
     } catch (err) {
-      // Check if the error is related to authentication
-      if (err.message && (err.message.includes('User not authenticated') || err.message.includes('permission denied'))) {
-        setError('Please log in to delete todos.');
-        router.push('/auth/login');
-      } else {
-        setError('Failed to delete todo.');
-      }
+      setError('Failed to delete todo.');
       console.error('Error deleting todo:', err);
     }
   };
@@ -175,22 +171,7 @@ export default function Home() {
             Organize your tasks efficiently and stay productive
           </p>
           
-          {user && (
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <span className="text-sm text-muted-foreground">
-                Signed in as: <span className="font-medium">{user.email}</span>
-              </span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleLogout}
-                className="h-8 w-8 p-0"
-                aria-label="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+
         </div>
 
         {/* Stats Cards */}
